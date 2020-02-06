@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width" />
+        <title>Peer-to-Peer Cue System --- Reciever</title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <div class="container display">
+            <div class="title">Status:</div>
+            <div id="status" class="status"></div>
+            <div id="receiver-id" style="font-weight: bold;" title="Copy this ID to the input on send.html.">
+                ID:
+            </div>
+        </div>
+        <button class="call" style="display: none">Call</button>
+
+        <video id="myVideo" muted="muted" width="800px" height="auto"></video>
+        <!-- <div id="callinfo" style="display:none">
+            <button id="callAnswer">Принять</button>
+        </div> -->
+        <!-- <video id="remVideo" width="400px" height="auto"></video> -->
+
+        <script src="https://cdn.jsdelivr.net/npm/peerjs@1.2.0/dist/peerjs.min.js"></script>
+        <script type="text/javascript">
+            (function() {
+                var lastPeerId = null;
+                var peer = null; // Own peer object
+                var peerId = null;
+                var conn = null;
+                var recvId = document.getElementById('receiver-id');
+                var status = document.getElementById('status');
+                var callButton = document.querySelector('.call');
+                var videoFrame = document.getElementById('myVideo');
+
+                /**
+                 * Create the Peer object for our end of the connection.
+                 *
+                 * Sets up callbacks that handle any events related to our
+                 * peer object.
+                 */
+                function initialize() {
+                    // Create own peer object with connection to shared PeerJS server
+                    peer = new Peer(null, {
+                        debug: 2
+                    });
+
+                    var peercall;
+
+                    peer.on('open', function(id) {
+                        // Workaround for peer.reconnect deleting previous id
+                        if (peer.id === null) {
+                            console.log('Received null id from peer open');
+                            peer.id = lastPeerId;
+                        } else {
+                            lastPeerId = peer.id;
+                        }
+
+                        console.log('ID: ' + peer.id);
+                        recvId.innerHTML = 'ID: ' + peer.id;
+                        status.innerHTML = 'Awaiting connection...';
+                    });
+                    peer.on('connection', function(c) {
+                        // Allow only a single connection
+                        if (conn) {
+                            c.on('open', function() {
+                                c.send('Already connected to another client');
+                                setTimeout(function() {
+                                    c.close();
+                                }, 500);
+                            });
+                            return;
+                        }
+
+                        conn = c;
+                        console.log('Connected to: ' + conn.peer);
+                        status.innerHTML = 'Connected';
+                        callButton.style.display = 'block';
+                        ready();
+                    });
+                    peer.on('disconnected', function() {
+                        status.innerHTML = 'Connection lost. Please reconnect';
+                        console.log('Connection lost. Please reconnect');
+
+                        // Workaround for peer.reconnect deleting previous id
+                        peer.id = lastPeerId;
+                        peer._lastServerId = lastPeerId;
+                        callButton.style.display = 'none';
+                        peer.reconnect();
+                    });
+                    peer.on('close', function() {
+                        conn = null;
+                        status.innerHTML = 'Connection destroyed. Please refresh';
+                        console.log('Connection destroyed');
+                        callButton.style.display = 'none';
+                    });
+                    peer.on('error', function(err) {
+                        console.log(err);
+                        callButton.style.display = 'none';
+                        alert('' + err);
+                    });
+                }
+
+                /**
+                 * Triggered once a connection has been achieved.
+                 * Defines callbacks to handle incoming data and connection events.
+                 */
+                function ready() {
+                    conn.on('data', function(data) {
+                        console.log('Data recieved');
+                        console.log(data);
+                    });
+                    conn.on('close', function() {
+                        status.innerHTML = 'Connection reset<br>Awaiting connection...';
+                        conn = null;
+                        start(true);
+                    });
+                }
+
+                async function startCapture() {
+                    let captureStream = null;
+
+                    try {
+                        captureStream = await navigator.mediaDevices.getDisplayMedia();
+                    } catch (err) {
+                        console.error('Error: ' + err);
+                    }
+
+                    return captureStream;
+                }
+
+                callButton.onclick = function() {
+                    startCapture().then(stream => {
+                        peer.call(conn.peer, stream);
+                        setTimeout(function() {
+                            console.log(stream);
+                            videoFrame.srcObject = stream;
+                            videoFrame.onloadedmetadata = function(e) {
+                                videoFrame.play();
+                            };
+                        }, 1500);
+                    });
+                };
+
+                // answerButton.onclick = function() {
+                //     navigator.mediaDevices
+                //         .getUserMedia({ audio: false, video: true })
+                //         .then(function(mediaStream) {
+                //             var video = document.getElementById('myVideo');
+                //             peercall.answer(mediaStream); // отвечаем на звонок и передаем свой медиапоток собеседнику
+                //             //peercall.on ('close', onCallClose); //можно обработать закрытие-обрыв звонка
+                //             video.srcObject = mediaStream; //помещаем собственный медиапоток в объект видео (чтоб видеть себя)
+                //             document.getElementById('callinfo').innerHTML =
+                //                 "Звонок начат... <button onclick='callclose()' >Завершить звонок</button>"; //информируем, что звонок начат, и выводим кнопку Завершить
+                //             video.onloadedmetadata = function(e) {
+                //                 //запускаем воспроизведение, когда объект загружен
+                //                 video.play();
+                //             };
+                //             setTimeout(function() {
+                //                 //входящий стрим помещаем в объект видео для отображения
+                //                 document.getElementById('remVideo').srcObject = peercall.remoteStream;
+                //                 document.getElementById('remVideo').onloadedmetadata = function(e) {
+                //                     // и запускаем воспроизведение когда объект загружен
+                //                     document.getElementById('remVideo').play();
+                //                 };
+                //             }, 1500);
+                //         })
+                //         .catch(function(err) {
+                //             console.log(err.name + ': ' + err.message);
+                //         });
+                // };
+
+                initialize();
+            })();
+        </script>
+    </body>
+</html>

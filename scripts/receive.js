@@ -29,7 +29,7 @@
         peer.on('open', () => {
             // Workaround for peer.reconnect deleting previous id
             if (peer.id === null) {
-                console.log('Received null id from peer open');
+                console.warn('Received null id from peer open');
                 peer.id = lastPeerId;
             } else {
                 lastPeerId = peer.id;
@@ -99,6 +99,7 @@
         conn.on('close', () => {
             status.textContent = 'Connection closed';
             status.className = classNames.warning;
+            conn = null;
         });
     }
 

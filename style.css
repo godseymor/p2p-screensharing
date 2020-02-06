@@ -25,6 +25,17 @@ a:visited{
 	color: blue; 
 }
 
+.center {
+    text-align: center;
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+}
+
+#status {
+    margin-bottom: 0;
+}
+
 .display {
     width: 100%;
     /* min-height: 400px; */
